@@ -43,7 +43,7 @@ function plugin_redirect_settings_page()
                 </tr>
             </table>
 
-            <table id="exception-table" style="width:100%">
+            <table id="exception-table" class="wp-list-table widefat striped">
                 <thead>
                 <tr>
                     <th><?php echo __('Post Type', 'checkintravel'); ?></th>
@@ -59,8 +59,7 @@ function plugin_redirect_settings_page()
                         ?>
                         <tr>
                             <td>
-                                <input type="hidden" name="exceptions[]"
-                                       value="<?php echo esc_attr($exception); ?>">
+                                <input type="hidden" name="exceptions[]" value="<?php echo esc_attr($exception); ?>">
                                 <?php echo get_post_type_object(get_post_type($exception))->labels->singular_name; ?>
                             </td>
                             <td>
@@ -112,7 +111,7 @@ add_action('admin_init', 'plugin_register_settings');
 function plugin_sanitize_exceptions($input)
 {
     if (is_array($input)) {
-        return array_map('esc_url_raw', $input);
+        return array_map('intval', $input);
     }
     return [];
 }
@@ -140,10 +139,61 @@ function plugin_enqueue_admin_scripts($hook)
     if ('plugin_page_plugin_redirect_settings' !== $hook) {
         return;
     }
-    wp_enqueue_script('plugin-admin-scripts-redirect', plugin_dir_path(__DIR__) . 'src/js/redirect.js', ['jquery'], '1.0.0', true);
+    wp_enqueue_script('plugin-admin-scripts-redirect', plugin_dir_url(__DIR__) . 'src/js/redirect.js', ['jquery'], '1.0.0', true);
     wp_localize_script('plugin-admin-scripts-redirect', 'ajax_object', [
         'ajaxurl' => admin_url('admin-ajax.php')
     ]);
 }
 
 add_action('admin_enqueue_scripts', 'plugin_enqueue_admin_scripts');
+
+
+function plugin_add_meta_box() {
+    $post_types = get_post_types(['public' => true], 'names');
+    foreach ($post_types as $post_type) {
+        add_meta_box(
+            'plugin-access-meta-box',
+            __('Access Settings', 'checkintravel'),
+            'plugin_render_access_meta_box',
+            $post_type,
+            'side',
+            'default'
+        );
+    }
+}
+
+add_action('add_meta_boxes', 'plugin_add_meta_box');
+
+function plugin_render_access_meta_box($post) {
+    wp_nonce_field('plugin_access_meta_box', 'plugin_access_meta_box_nonce');
+    $restricted_access = get_post_meta($post->ID, '_plugin_restricted_access', true);
+    if (!$restricted_access) {
+        $restricted_access = 'on';
+    }
+    ?>
+    <p>
+        <input type="checkbox" id="plugin-restricted-access" name="plugin_restricted_access" <?php checked($restricted_access, 'on'); ?>>
+        <label for="plugin-restricted-access"><?php echo __('Restricted Access', 'checkintravel'); ?></label>
+    </p>
+    <?php
+}
+
+function plugin_save_access_meta_box($post_id) {
+    if (!isset($_POST['plugin_access_meta_box_nonce']) || !wp_verify_nonce($_POST['plugin_access_meta_box_nonce'], 'plugin_access_meta_box')) {
+        return;
+    }
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+        return;
+    }
+    if (!current_user_can('edit_post', $post_id)) {
+        return;
+    }
+    if (isset($_POST['plugin_restricted_access'])) {
+        $restricted_access = 'on';
+    } else {
+        $restricted_access = 'off';
+    }
+    update_post_meta($post_id, '_plugin_restricted_access', $restricted_access);
+}
+
+add_action('save_post', 'plugin_save_access_meta_box');

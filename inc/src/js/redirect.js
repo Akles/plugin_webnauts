@@ -1,4 +1,3 @@
-alert(123);
 document.addEventListener('DOMContentLoaded', function () {
     var addButton = document.getElementById('add-exception');
     var exceptionTable = document.getElementById('exception-table');
@@ -44,6 +43,7 @@ document.addEventListener('DOMContentLoaded', function () {
     confirmSelection.addEventListener('click', function (event) {
         event.preventDefault();
         var postId = postSelector.value;
+        console.log(postId)
         var postTitle = postSelector.options[postSelector.selectedIndex].text;
         var postType = postTypeSelector.options[postTypeSelector.selectedIndex].text;
 
