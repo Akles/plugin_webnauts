@@ -107,8 +107,8 @@ function plugin_enqueue_admin_scripts($hook) {
     if ('settings_page_redirect_settings_group' !== $hook) {
         return;
     }
-    wp_enqueue_script('plugin-admin-scripts', plugin_dir_url() . 'inc/src/js/admin-scripts.js', ['jquery'], '1.0.0', true);
-    wp_localize_script('plugin-admin-scripts', 'ajax_object', [
+    wp_enqueue_script('plugin-admin-scripts-redirect', plugin_dir_url() . 'inc/src/js/redirect.js', ['jquery'], '1.0.0', true);
+    wp_localize_script('plugin-admin-scripts-redirect', 'ajax_object', [
         'ajaxurl' => admin_url('admin-ajax.php')
     ]);
 }
