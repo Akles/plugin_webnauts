@@ -147,23 +147,21 @@ function plugin_enqueue_admin_scripts($hook)
 
 add_action('admin_enqueue_scripts', 'plugin_enqueue_admin_scripts');
 
-
+// Добавление метабокса на страницу редактирования поста
 function plugin_add_meta_box() {
-    $post_types = get_post_types(['public' => true], 'names');
-    foreach ($post_types as $post_type) {
-        add_meta_box(
-            'plugin-access-meta-box',
-            __('Access Settings', 'checkintravel'),
-            'plugin_render_access_meta_box',
-            $post_type,
-            'side',
-            'default'
-        );
-    }
+    add_meta_box(
+        'plugin-access-meta-box',
+        __('Access Settings', 'checkintravel'),
+        'plugin_render_access_meta_box',
+        'post',
+        'side',
+        'default'
+    );
 }
 
 add_action('add_meta_boxes', 'plugin_add_meta_box');
 
+// Отрисовка метабокса
 function plugin_render_access_meta_box($post) {
     wp_nonce_field('plugin_access_meta_box', 'plugin_access_meta_box_nonce');
     $restricted_access = get_post_meta($post->ID, '_plugin_restricted_access', true);
@@ -178,6 +176,7 @@ function plugin_render_access_meta_box($post) {
     <?php
 }
 
+// Сохранение метаданных при сохранении поста
 function plugin_save_access_meta_box($post_id) {
     if (!isset($_POST['plugin_access_meta_box_nonce']) || !wp_verify_nonce($_POST['plugin_access_meta_box_nonce'], 'plugin_access_meta_box')) {
         return;
@@ -197,3 +196,21 @@ function plugin_save_access_meta_box($post_id) {
 }
 
 add_action('save_post', 'plugin_save_access_meta_box');
+
+// Получение списка исключений для каждого поста
+function plugin_get_exceptions() {
+    $exceptions = array();
+    $posts = get_posts(array('post_type' => 'post', 'posts_per_page' => -1));
+    foreach ($posts as $post) {
+        $restricted_access = get_post_meta($post->ID, '_plugin_restricted_access', true);
+        if ($restricted_access && $restricted_access == 'on') {
+            $exceptions[] = $post->ID;
+        }
+    }
+    return $exceptions;
+}
+
+function plugin_is_exception($post_id) {
+    $restricted_access = get_post_meta($post_id, '_plugin_restricted_access', true);
+    return ($restricted_access == 'on');
+}
