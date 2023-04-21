@@ -12,6 +12,38 @@ function plugin_redirect_settings_page()
             ?>
             <table class="form-table">
                 <tr valign="top">
+                    <th scope="row"><?php echo __('Unauthorized Access Redirect', 'checkintravel'); ?></th>
+                    <td>
+                        <?php
+                        $unauthorized_redirect = get_option('unauthorized_redirect');
+                        wp_dropdown_pages([
+                            'name' => 'unauthorized_redirect',
+                            'echo' => 1,
+                            'show_option_none' => __('&mdash; Select &mdash;', 'checkintravel'),
+                            'option_none_value' => '',
+                            'selected' => $unauthorized_redirect
+                        ]);
+                        ?>
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row"><?php echo __('Authorized Access without Subscription Redirect', 'checkintravel'); ?></th>
+                    <td>
+                        <?php
+                        $no_subscription_redirect = get_option('no_subscription_redirect');
+                        wp_dropdown_pages([
+                            'name' => 'no_subscription_redirect',
+                            'echo' => 1,
+                            'show_option_none' => __('&mdash; Select &mdash;', 'checkintravel'),
+                            'option_none_value' => '',
+                            'selected' => $no_subscription_redirect
+                        ]);
+                        ?>
+                    </td>
+                </tr>
+            </table>
+            <table class="form-table">
+                <tr valign="top">
                     <th scope="row"><?php echo __('Exception Table', 'checkintravel'); ?></th>
                     <td>
                         <table id="exception-table" style="width:100%">
@@ -107,7 +139,7 @@ function plugin_enqueue_admin_scripts($hook) {
     if ('settings_page_redirect_settings_group' !== $hook) {
         return;
     }
-    wp_enqueue_script('plugin-admin-scripts-redirect', plugin_dir_url() . 'inc/src/js/redirect.js', ['jquery'], '1.0.0', true);
+    wp_enqueue_script('plugin-admin-scripts-redirect',plugin_dir_path(__DIR__) . 'src/js/redirect.js', ['jquery'], '1.0.0', true);
     wp_localize_script('plugin-admin-scripts-redirect', 'ajax_object', [
         'ajaxurl' => admin_url('admin-ajax.php')
     ]);

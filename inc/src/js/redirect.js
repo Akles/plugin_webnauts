@@ -1,3 +1,4 @@
+alert(123);
 document.addEventListener('DOMContentLoaded', function () {
     var addButton = document.getElementById('add-exception');
     var exceptionTable = document.getElementById('exception-table');
