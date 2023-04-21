@@ -1,7 +1,6 @@
 <?php
 
-function plugin_redirect_settings_page()
-{
+function plugin_redirect_settings_page() {
     ?>
     <div class="wrap">
         <h1><?php echo __('Redirect Settings', 'checkintravel'); ?></h1>
@@ -10,92 +9,66 @@ function plugin_redirect_settings_page()
             settings_fields('redirect_settings_group');
             do_settings_sections('redirect_settings_group');
             ?>
-            <table class="form-table">
-                <tr valign="top">
-                    <th scope="row"><?php echo __('Unauthorized Access Redirect', 'checkintravel'); ?></th>
-                    <td>
-                        <?php
-                        $unauthorized_redirect = get_option('unauthorized_redirect');
-                        wp_dropdown_pages([
-                            'name' => 'unauthorized_redirect',
-                            'echo' => 1,
-                            'show_option_none' => __('&mdash; Select &mdash;', 'checkintravel'),
-                            'option_none_value' => '',
-                            'selected' => $unauthorized_redirect
-                        ]);
-                        ?>
-                    </td>
-                </tr>
-                <tr valign="top">
-                    <th scope="row"><?php echo __('Authorized Access without Subscription Redirect', 'checkintravel'); ?></th>
-                    <td>
-                        <?php
-                        $no_subscription_redirect = get_option('no_subscription_redirect');
-                        wp_dropdown_pages([
-                            'name' => 'no_subscription_redirect',
-                            'echo' => 1,
-                            'show_option_none' => __('&mdash; Select &mdash;', 'checkintravel'),
-                            'option_none_value' => '',
-                            'selected' => $no_subscription_redirect
-                        ]);
-                        ?>
-                    </td>
-                </tr>
-            </table>
-
-            <table id="exception-table" class="wp-list-table widefat striped">
-                <thead>
-                <tr>
-                    <th><?php echo __('Post Type', 'checkintravel'); ?></th>
-                    <th><?php echo __('Post', 'checkintravel'); ?></th>
-                    <th><?php echo __('Actions', 'checkintravel'); ?></th>
-                </tr>
-                </thead>
-                <tbody>
-                <?php
-                $exceptions = get_option('exceptions');
-                if ($exceptions) {
-                    foreach ($exceptions as $exception) {
-                        ?>
-                        <tr>
-                            <td>
-                                <input type="hidden" name="exceptions[]" value="<?php echo esc_attr($exception); ?>">
-                                <?php echo get_post_type_object(get_post_type($exception))->labels->singular_name; ?>
-                            </td>
-                            <td>
-                                <?php echo get_the_title($exception); ?>
-                            </td>
-                            <td>
-                                <button class="button button-secondary remove-row"><?php echo __('Remove', 'checkintravel'); ?></button>
-                            </td>
-                        </tr>
-                        <?php
-                    }
-                }
-                ?>
-                </tbody>
-            </table>
-            <button class="button button-primary"
-                    id="add-exception"><?php echo __('Add Exception', 'checkintravel'); ?></button>
-            <div id="exception-selector" style="display:none;">
-                <select id="post-type-selector">
-                    <option value=""><?php echo __('&mdash; Select Post Type &mdash;', 'checkintravel'); ?></option>
-                    <?php
-                    $post_types = get_post_types(['public' => true], 'objects');
-                    foreach ($post_types as $post_type) {
-                        echo '<option value="' . $post_type->name . '">' . $post_type->labels->singular_name . '</option>';
-                    }
-                    ?>
-                </select>
-                <select id="post-selector" style="display:none;">
-                    <option value=""><?php echo __('&mdash; Select Post &mdash;', 'checkintravel'); ?></option>
-                </select>
-                <button class="button button-primary" id="confirm-selection"
-                        style="display:none;"><?php echo __('Add', 'checkintravel'); ?></button>
-            </div>
+            <?php plugin_render_unauthorized_redirect(); ?>
+            <?php plugin_render_no_subscription_redirect(); ?>
+            <?php plugin_render_exceptions(); ?>
             <?php submit_button(); ?>
         </form>
     </div>
+    <?php
+}
+
+function plugin_render_unauthorized_redirect() {
+    $unauthorized_redirect = get_option('unauthorized_redirect');
+    ?>
+    <table class="form-table">
+        <tr valign="top">
+            <th scope="row"><?php echo __('Unauthorized Access Redirect', 'checkintravel'); ?></th>
+            <td>
+                <?php wp_dropdown_pages([
+                    'name' => 'unauthorized_redirect',
+                    'echo' => 1,
+                    'show_option_none' => __('&mdash; Select &mdash;', 'checkintravel'),
+                    'option_none_value' => '',
+                    'selected' => $unauthorized_redirect
+                ]); ?>
+            </td>
+        </tr>
+    </table>
+    <?php
+}
+
+function plugin_render_no_subscription_redirect() {
+    $no_subscription_redirect = get_option('no_subscription_redirect');
+    ?>
+    <table class="form-table">
+        <tr valign="top">
+            <th scope="row"><?php echo __('Authorized Access without Subscription Redirect', 'checkintravel'); ?></th>
+            <td>
+                <?php wp_dropdown_pages([
+                    'name' => 'no_subscription_redirect',
+                    'echo' => 1,
+                    'show_option_none' => __('&mdash; Select &mdash;', 'checkintravel'),
+                    'option_none_value' => '',
+                    'selected' => $no_subscription_redirect
+                ]); ?>
+            </td>
+        </tr>
+    </table>
+    <?php
+}
+
+function plugin_render_exceptions() {
+    ?>
+    <table class="form-table">
+        <tr valign="top">
+            <th scope="row"><?php echo __('Exception Table', 'checkintravel'); ?></th>
+            <td>
+                <?php plugin_render_exceptions_table(); ?>
+                <?php plugin_render_exceptions_selector(); ?>
+            </td>
+        </tr>
+    </table>
     <?php
 }
 
