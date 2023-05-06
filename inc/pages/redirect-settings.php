@@ -1,6 +1,7 @@
 <?php
 
-function plugin_redirect_settings_page() {
+function plugin_redirect_settings_page()
+{
     ?>
     <div class="wrap">
         <h1><?php echo __('Redirect Settings', 'checkintravel'); ?></h1>
@@ -11,6 +12,8 @@ function plugin_redirect_settings_page() {
             ?>
             <?php plugin_render_unauthorized_redirect(); ?>
             <?php plugin_render_no_subscription_redirect(); ?>
+            <?php plugin_render_login_page(); ?>
+            <?php plugin_render_post_types_exceptions(); ?>
             <?php plugin_render_exceptions(); ?>
             <?php submit_button(); ?>
         </form>
@@ -18,7 +21,28 @@ function plugin_redirect_settings_page() {
     <?php
 }
 
-function plugin_render_unauthorized_redirect() {
+function plugin_render_login_page() {
+    $login_page = get_option('login_page', 0);
+    ?>
+    <table class="form-table">
+        <tr valign="top">
+            <th scope="row"><?php echo __('Login Page', 'checkintravel'); ?></th>
+            <td>
+                <?php wp_dropdown_pages([
+                    'name' => 'login_page',
+                    'echo' => 1,
+                    'show_option_none' => __('&mdash; Select &mdash;', 'checkintravel'),
+                    'option_none_value' => '',
+                    'selected' => $login_page
+                ]); ?>
+            </td>
+        </tr>
+    </table>
+    <?php
+}
+
+function plugin_render_unauthorized_redirect()
+{
     $unauthorized_redirect = get_option('unauthorized_redirect');
     ?>
     <table class="form-table">
@@ -38,7 +62,8 @@ function plugin_render_unauthorized_redirect() {
     <?php
 }
 
-function plugin_render_no_subscription_redirect() {
+function plugin_render_no_subscription_redirect()
+{
     $no_subscription_redirect = get_option('no_subscription_redirect');
     ?>
     <table class="form-table">
@@ -58,7 +83,10 @@ function plugin_render_no_subscription_redirect() {
     <?php
 }
 
-function plugin_render_exceptions() {
+
+
+function plugin_render_exceptions()
+{
     ?>
     <table class="form-table">
         <tr valign="top">
@@ -72,118 +100,226 @@ function plugin_render_exceptions() {
     <?php
 }
 
-function plugin_register_settings()
+
+function plugin_render_exceptions_table()
 {
-    register_setting('redirect_settings_group', 'unauthorized_redirect', 'intval');
-    register_setting('redirect_settings_group', 'no_subscription_redirect', 'intval');
-    register_setting('redirect_settings_group', 'exceptions', 'plugin_sanitize_exceptions');
+    ?>
+    <div id="exceptions-table-wrapper">
+        <input type="text" id="exceptions-search" placeholder="<?php echo __('Search', 'checkintravel'); ?>">
+        <table id="exceptions-table" class="widefat fixed striped">
+            <thead>
+            <tr>
+                <th scope="col" class="sortable"><?php echo __('Title', 'checkintravel'); ?></th>
+                <th scope="col" class="sortable"><?php echo __('Date Created', 'checkintravel'); ?></th>
+                <th scope="col" class="sortable"><?php echo __('Post Type', 'checkintravel'); ?></th>
+                <th scope="col" class="sortable"><?php echo __('Categories', 'checkintravel'); ?></th>
+                <th scope="col"><?php echo __('Actions', 'checkintravel'); ?></th>
+            </tr>
+            </thead>
+            <tbody id="exceptions-table-body">
+            <!-- AJAX will populate this tbody with the appropriate rows -->
+            </tbody>
+            <tfoot>
+            <tr>
+                <th scope="col" class="sortable"><?php echo __('Title', 'checkintravel'); ?></th>
+                <th scope="col" class="sortable"><?php echo __('Date Created', 'checkintravel'); ?></th>
+                <th scope="col" class="sortable"><?php echo __('Post Type', 'checkintravel'); ?></th>
+                <th scope="col" class="sortable"><?php echo __('Categories', 'checkintravel'); ?></th>
+                <th scope="col"><?php echo __('Actions', 'checkintravel'); ?></th>
+            </tr>
+            </tfoot>
+        </table>
+        <div id="exceptions-pagination">
+            <!-- AJAX will generate and manage the pagination here -->
+        </div>
+    </div>
+    <?php
 }
 
-add_action('admin_init', 'plugin_register_settings');
-
-function plugin_sanitize_exceptions($input)
+function plugin_render_exceptions_selector()
 {
-    if (is_array($input)) {
-        return array_map('intval', $input);
+    $post_types = get_post_types(['public' => true], 'objects');
+    ?>
+    <div id="exceptions-selector-wrapper">
+        <label for="exceptions-post-type"><?php echo __('Filter by Post Type:', 'checkintravel'); ?></label>
+        <select id="exceptions-post-type">
+            <option value=""><?php echo __('All', 'checkintravel'); ?></option>
+            <?php foreach ($post_types as $post_type) : ?>
+                <option value="<?php echo esc_attr($post_type->name); ?>"><?php echo esc_html($post_type->labels->singular_name); ?></option>
+            <?php endforeach; ?>
+        </select>
+    </div>
+    <?php
+}
+
+function plugin_ajax_get_posts()
+{
+    check_ajax_referer('plugin_get_posts', 'security');
+
+    $post_type = isset($_POST['post_type']) ? sanitize_text_field($_POST['post_type']) : '';
+    $search = isset($_POST['search']) ? sanitize_text_field($_POST['search']) : '';
+    $orderby = isset($_POST['orderby']) ? sanitize_text_field($_POST['orderby']) : 'date';
+    $order = isset($_POST['order']) ? sanitize_text_field($_POST['order']) : 'DESC';
+    $paged = isset($_POST['paged']) ? absint($_POST['paged']) : 1;
+
+    $args = [
+        'post_type' => $post_type ? $post_type : 'any',
+        'posts_per_page' => 100,
+        'paged' => $paged,
+        'meta_key' => 'exception_redirection',
+        'orderby' => $orderby,
+        'order' => $order,
+    ];
+
+    if (!empty($search)) {
+        $args['s'] = $search;
     }
-    return [];
+
+    $query = new WP_Query($args);
+
+    $response = [
+        'posts' => [],
+        'total_posts' => (int)$query->found_posts,
+        'max_num_pages' => (int)$query->max_num_pages,
+    ];
+
+    if ($query->have_posts()) {
+        while ($query->have_posts()) {
+            $query->the_post();
+            $post_categories = wp_get_post_categories(get_the_ID(), ['fields' => 'names']);
+            $post_type_object = get_post_type_object(get_post_type());
+
+            $response['posts'][] = [
+                'ID' => get_the_ID(),
+                'title' => get_the_title(),
+                'edit_link' => get_edit_post_link(),
+                'date' => get_the_date(),
+                'post_type' => $post_type_object->labels->singular_name,
+                'categories' => implode(', ', $post_categories),
+            ];
+        }
+        wp_reset_postdata();
+    }
+
+    wp_send_json_success($response);
 }
 
-add_action('wp_ajax_get_posts_by_post_type', 'plugin_get_posts_by_post_type');
+add_action('wp_ajax_plugin_get_posts', 'plugin_ajax_get_posts');
 
-function plugin_get_posts_by_post_type()
+
+function plugin_ajax_remove_exception()
 {
-    $post_type = sanitize_text_field($_POST['post_type']);
-    $posts = get_posts([
-        'post_type' => $post_type,
-        'posts_per_page' => -1,
-        'orderby' => 'title',
-        'order' => 'ASC',
-        'post_status' => 'publish'
-    ]);
+    check_ajax_referer('plugin_remove_exception', 'security');
 
-    echo json_encode($posts);
+    $post_id = isset($_POST['post_id']) ? absint($_POST['post_id']) : 0;
 
-    wp_die();
+    if ($post_id) {
+        delete_post_meta($post_id, 'exception_redirection');
+        wp_send_json_success(['message' => __('Post removed from exceptions.', 'checkintravel')]);
+    } else {
+        wp_send_json_error(['message' => __('Invalid post ID.', 'checkintravel')]);
+    }
 }
+
+add_action('wp_ajax_plugin_remove_exception', 'plugin_ajax_remove_exception');
 
 function plugin_enqueue_admin_scripts($hook)
 {
-    if ('plugin_page_plugin_redirect_settings' !== $hook) {
-        return;
+    if ($hook === 'plugin_page_plugin_redirect_settings') { // The correct hook for your settings page
+        // Register and enqueue the main JavaScript file
+        wp_register_script('plugin-redirect-js', plugin_dir_url(__DIR__) . 'src/js/redirect.js', ['jquery'], '1.0.0', true);
+        wp_enqueue_script('plugin-redirect-js');
+
+        // Localize the script to pass data to the JavaScript file
+        wp_localize_script('plugin-redirect-js', 'pluginRedirectData', [
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'getPostsNonce' => wp_create_nonce('plugin_get_posts'),
+            'removeExceptionNonce' => wp_create_nonce('plugin_remove_exception'),
+        ]);
+
     }
-    wp_enqueue_script('plugin-admin-scripts-redirect', plugin_dir_url(__DIR__) . 'src/js/redirect.js', ['jquery'], '1.0.0', true);
-    wp_localize_script('plugin-admin-scripts-redirect', 'ajax_object', [
-        'ajaxurl' => admin_url('admin-ajax.php')
-    ]);
 }
 
 add_action('admin_enqueue_scripts', 'plugin_enqueue_admin_scripts');
 
-// Добавление метабокса на страницу редактирования поста
-function plugin_add_meta_box() {
-    add_meta_box(
-        'plugin-access-meta-box',
-        __('Access Settings', 'checkintravel'),
-        'plugin_render_access_meta_box',
-        'post',
-        'side',
-        'default'
-    );
-}
 
-add_action('add_meta_boxes', 'plugin_add_meta_box');
-
-// Отрисовка метабокса
-function plugin_render_access_meta_box($post) {
-    wp_nonce_field('plugin_access_meta_box', 'plugin_access_meta_box_nonce');
-    $restricted_access = get_post_meta($post->ID, '_plugin_restricted_access', true);
-    if (!$restricted_access) {
-        $restricted_access = 'on';
-    }
-    ?>
-    <p>
-        <input type="checkbox" id="plugin-restricted-access" name="plugin_restricted_access" <?php checked($restricted_access, 'on'); ?>>
-        <label for="plugin-restricted-access"><?php echo __('Restricted Access', 'checkintravel'); ?></label>
-    </p>
-    <?php
-}
-
-// Сохранение метаданных при сохранении поста
-function plugin_save_access_meta_box($post_id) {
-    if (!isset($_POST['plugin_access_meta_box_nonce']) || !wp_verify_nonce($_POST['plugin_access_meta_box_nonce'], 'plugin_access_meta_box')) {
+function plugin_save_exceptions_meta_box_data($post_id)
+{
+    // Verify the nonce field
+    if (!isset($_POST['plugin_exceptions_nonce']) || !wp_verify_nonce($_POST['plugin_exceptions_nonce'], 'plugin_save_exceptions')) {
         return;
     }
-    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
-        return;
-    }
+
+    // Check if the current user can edit the post
     if (!current_user_can('edit_post', $post_id)) {
         return;
     }
-    if (isset($_POST['plugin_restricted_access'])) {
-        $restricted_access = 'on';
+
+    // Save or remove the exception data
+    if (isset($_POST['plugin_exceptions_checkbox']) && $_POST['plugin_exceptions_checkbox'] === 'on') {
+        update_post_meta($post_id, 'exception_redirection', 1);
     } else {
-        $restricted_access = 'off';
+        delete_post_meta($post_id, 'exception_redirection');
     }
-    update_post_meta($post_id, '_plugin_restricted_access', $restricted_access);
 }
 
-add_action('save_post', 'plugin_save_access_meta_box');
+add_action('save_post', 'plugin_save_exceptions_meta_box_data');
 
-// Получение списка исключений для каждого поста
-function plugin_get_exceptions() {
-    $exceptions = array();
-    $posts = get_posts(array('post_type' => 'post', 'posts_per_page' => -1));
-    foreach ($posts as $post) {
-        $restricted_access = get_post_meta($post->ID, '_plugin_restricted_access', true);
-        if ($restricted_access && $restricted_access == 'on') {
-            $exceptions[] = $post->ID;
-        }
+function plugin_exceptions_meta_box_callback($post)
+{
+    // Add a nonce field for security
+    wp_nonce_field('plugin_save_exceptions', 'plugin_exceptions_nonce');
+
+    // Check if the post is in exceptions
+    $is_exception = get_post_meta($post->ID, 'exception_redirection', true);
+
+    // Render the checkbox
+    ?>
+    <label for="plugin_exceptions_checkbox">
+        <input type="checkbox" name="plugin_exceptions_checkbox"
+               id="plugin_exceptions_checkbox" <?php checked($is_exception); ?>>
+        <?php _e('Mark this post as an exception', 'checkintravel'); ?>
+    </label>
+    <?php
+}
+
+function plugin_add_exceptions_meta_box()
+{
+    $screens = get_option('post_types_exceptions', []); // Get the selected post types from settings
+    foreach ($screens as $screen) {
+        add_meta_box(
+            'plugin_exceptions_meta_box',
+            __('Add to Exceptions', 'checkintravel'),
+            'plugin_exceptions_meta_box_callback',
+            $screen,
+            'side',
+            'default'
+        );
     }
-    return $exceptions;
 }
 
-function plugin_is_exception($post_id) {
-    $restricted_access = get_post_meta($post_id, '_plugin_restricted_access', true);
-    return ($restricted_access == 'on');
+add_action('add_meta_boxes', 'plugin_add_exceptions_meta_box');
+
+function plugin_render_post_types_exceptions()
+{
+    $selected_post_types = get_option('post_types_exceptions', []);
+    $post_types = get_post_types(['public' => true], 'objects');
+    ?>
+    <table class="form-table">
+        <tr valign="top">
+            <th scope="row"><?php echo __('Post Types for Exceptions', 'checkintravel'); ?></th>
+            <td>
+                <?php foreach ($post_types as $post_type) : ?>
+                    <label>
+                        <input type="checkbox" name="post_types_exceptions[]"
+                               value="<?php echo $post_type->name; ?>" <?php checked(in_array($post_type->name, $selected_post_types)); ?>>
+                        <?php echo $post_type->labels->singular_name; ?>
+                    </label><br>
+                <?php endforeach; ?>
+            </td>
+        </tr>
+    </table>
+    <?php
 }
+
+

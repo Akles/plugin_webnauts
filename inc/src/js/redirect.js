@@ -1,79 +1,65 @@
-document.addEventListener('DOMContentLoaded', function () {
-    var addButton = document.getElementById('add-exception');
-    var exceptionTable = document.getElementById('exception-table');
-    var removeButtons = document.getElementsByClassName('remove-row');
-    var postTypeSelector = document.getElementById('post-type-selector');
-    var postSelector = document.getElementById('post-selector');
-    var confirmSelection = document.getElementById('confirm-selection');
-    var exceptionSelector = document.getElementById('exception-selector');
+jQuery(document).ready(function ($) {
+    function getPosts() {
+        var data = {
+            action: 'plugin_get_posts',
+            post_type: $('#exceptions-post-type').val(),
+            search: $('#exceptions-search').val(),
+            security: pluginRedirectData.getPostsNonce
+        };
 
-    addButton.addEventListener('click', function (event) {
-        event.preventDefault();
-        exceptionSelector.style.display = 'block';
-    });
+        $.post(pluginRedirectData.ajaxUrl, data, function (response) {
+            if (response.success) {
+                var posts = response.data.posts;
+                var tableBody = $('#exceptions-table-body');
+                tableBody.empty();
 
-    postTypeSelector.addEventListener('change', function () {
-        var postType = postTypeSelector.value;
-        if (postType) {
-            fetch(ajaxurl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                body: 'action=get_posts_by_post_type&post_type=' + postType
-            })
-                .then(function (response) {
-                    return response.json();
-                })
-                .then(function (posts) {
-                    var options = '<option value="">Select Post';
+                if (posts.length > 0) {
                     posts.forEach(function (post) {
-                        options += '<option value="' + post.ID + '">' + post.post_title + '</option>';
+                        var row = $('<tr></tr>');
+                        row.append($('<td></td>').html('<a href="' + post.edit_link + '">' + post.title + '</a>'));
+                        row.append($('<td></td>').text(post.date));
+                        row.append($('<td></td>').text(post.post_type));
+                        row.append($('<td></td>').text(post.categories));
+
+                        var removeButton = $('<button></button>').text('Remove').on('click', function (e) {
+                            e.preventDefault()
+                            removeException(post.ID, row);
+                        });
+
+                        row.append($('<td></td>').append(removeButton));
+                        tableBody.append(row);
                     });
-                    postSelector.innerHTML = options;
-                    postSelector.style.display = 'inline-block';
-                    confirmSelection.style.display = 'inline-block';
-                });
-        } else {
-            postSelector.style.display = 'none';
-            confirmSelection.style.display = 'none';
-        }
-    });
-
-    confirmSelection.addEventListener('click', function (event) {
-        event.preventDefault();
-        var postId = postSelector.value;
-        console.log(postId)
-        var postTitle = postSelector.options[postSelector.selectedIndex].text;
-        var postType = postTypeSelector.options[postTypeSelector.selectedIndex].text;
-
-        if (postId) {
-            var newRow = document.createElement('tr');
-            newRow.innerHTML = `
-                <td>
-                    <input type="hidden" name="exceptions[]" value="${postId}">
-                    ${postType}
-                </td>
-                <td>
-                    ${postTitle}
-                </td>
-                <td>
-                    <button class="button button-secondary remove-row">Remove</button>
-                </td>
-            `;
-            exceptionTable.querySelector('tbody').appendChild(newRow);
-            newRow.querySelector('.remove-row').addEventListener('click', removeRow);
-            exceptionSelector.style.display = 'none';
-        }
-    });
-
-    for (var i = 0; i < removeButtons.length; i++) {
-        removeButtons[i].addEventListener('click', removeRow);
+                } else {
+                    tableBody.append('<tr><td colspan="5">No exceptions found.</td></tr>');
+                }
+            }
+        });
     }
 
-    function removeRow(event) {
-        event.preventDefault();
-        var row = event.target.parentNode.parentNode;
-        row.parentNode.removeChild(row);
+    function removeException(postId, row) {
+        var data = {
+            action: 'plugin_remove_exception',
+            post_id: postId,
+            security: pluginRedirectData.removeExceptionNonce
+        };
+
+        $.post(pluginRedirectData.ajaxUrl, data, function (response) {
+            if (response.success) {
+                row.remove();
+                alert(response.data.message);
+            } else {
+                alert(response.data.message);
+            }
+        });
     }
+
+    $('#exceptions-search').on('input', function () {
+        getPosts();
+    });
+
+    $('#exceptions-post-type').on('change', function () {
+        getPosts();
+    });
+
+    getPosts(); // Fetch and display the exception posts when the page loads
 });
